@@ -8,3 +8,8 @@ name = "FileTracer"
 [[lean_exe]]
 name = "filetracer"
 root = "Main"
+
+[[require]]
+name = "Lean4MyLib"
+git = "https://github.com/shinamon610/Lean4MyLib"
+rev = "main"
