@@ -1,0 +1,10 @@
+name = "FileTracer"
+version = "0.1.0"
+defaultTargets = ["filetracer"]
+
+[[lean_lib]]
+name = "FileTracer"
+
+[[lean_exe]]
+name = "filetracer"
+root = "Main"
