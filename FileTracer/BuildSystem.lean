@@ -171,12 +171,3 @@ def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k
 
 unsafe def make  [BEq k] [Hashable k]:Build Applicative (MakeInfo k) k v:=topological modTimeRebuilder
 unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k v) k v:=topological vtRebuilderA
-
--- def tasks:Tasks Applicative String String
--- | "output.o"=> some (Task.mk fun _ => fun fetch => ((· ++ ·) <$> fetch "input1.c" <*> fetch "input2.c"))
--- | "exe"=> some (Task.mk fun _ => fun fetch => ((fun txt=>"exe:"++txt) <$> fetch "output.o"))
--- | "input1.c"=> some (Task.mk fun _ => fun _ => pure "input1.c")
--- | "input2.c"=> some (Task.mk fun _ => fun _ => pure "input2.c")
--- | _ => none
--- def init:Store (VT String String) String String:=⟨HashMap.ofList [("exe",(0,[])),("output.o",(0,[])),("input1.c",(0,[])),("input2.c",(0,[]))], fun key=>if key=="A1" then "" else ""⟩
--- #eval (ninja tasks "exe" init).getValue "exe"
