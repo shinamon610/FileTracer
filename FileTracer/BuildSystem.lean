@@ -4,31 +4,31 @@ open Tree
 open Std
 
 namespace BuildSystem
-universe u v w
+universe u v
 
-structure Store (i k:Type u) (v:Type) where
+structure Store (i k v:Type u) where
   getInfo:i
-  getValue:k->IO v
+  getValue:k->v
 
 def putInfo (info:i) (store:Store i k v):Store i k v:={store with getInfo:=info}
 def putValue [BEq k] (key:k) (value:v) (store:Store i k v):Store i k v:=
-  let table := fun n_key:k =>if n_key == key then return value else store.getValue n_key
+  let table := fun n_key:k =>if n_key == key then value else store.getValue n_key
   {store with getValue:=table}
 
 def C := (Type u -> Type v)-> Type (max (u+1) v)
 
-structure Task (c:C) (k:Type u) (v:Type)  where
+structure Task (c:C) (k v:Type u)  where
   run :(c f) -> (k->f v)->f v
 
-def Tasks (c : C) (k:Type u) (v:Type) := k -> Option (Task c k v)
+def Tasks (c : C) (k v:Type u) := k -> Option (Task c k v)
 
-def Build  (c:C) (i k:Type u)(v:Type):= Tasks c k v -> k -> Store i k v -> Store i k v
+def Build  (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> Store i k v
 class MonadStateM (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
 instance : MonadStateM i (StateM i) where
 
-def Rebuilder (c:C) (ir:Type) (k:Type u) (v:Type):=k->v->Task c k v->Task (MonadStateM ir) k v
-def Scheduler (c:C) (i:Type u) (ir:Type) (k:Type u) (v:Type):= Rebuilder c ir k v-> Build c i k v
+def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateM ir) k v
+def Scheduler (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build c i k v
 
 def execState (state:StateM S A) (init:S):S:=(state.run init).snd
 
