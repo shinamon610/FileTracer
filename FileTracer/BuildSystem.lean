@@ -98,55 +98,14 @@ unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
 
     execState (mapM_ build order) store
 
-abbrev Time:=Int
-def MakeInfo k [BEq k] [Hashable k]:=(Time × HashMap k Time)
-def modTimeRebuilder [BEq k] [Hashable k] : Rebuilder Applicative (MakeInfo k) k v :=
-  fun key value task => Task.mk $ fun _ fetch => do
-    let (now, modTimes) ← get
-    let dirty := match modTimes[key]? with
-      | none => true
-      | some time =>
-          let deps := dependencies task
-          deps.any (fun d =>
-            match modTimes[d]? with
-            | none => false
-            | some depTime => depTime > time
-          )
-
-    if !dirty then
-      return value
-    else
-      let newModTimes := modTimes.insert key (now + 1)
-      modify (fun (_, _) => (now + 1, newModTimes))
-      task.run (inferInstance : Applicative _) fetch
-
 abbrev VT (k : Type) (_ : Type) [BEq k] [Hashable k]  := HashMap k (UInt64 × (List (k×UInt64)))
 
 def getHash! [BEq k] [Hashable k] (vt:VT k v) (key:k): UInt64 :=
   let res:= vt[key]!
   res.fst
 
-def recordVT [BEq k] [Hashable k] [Hashable v] (key : k) (value:v) (dep_hash:List (k×v)) (vt:VT k v) : VT k v:=
-  vt.insert key (hash (value), dep_hash.map (fun (dkey,dvalue)=>(dkey,hash dvalue)))
-
 def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k v) : VT k v:=
   vt.insert key (hash_value, dep_hash)
-
--- False -> should rebuild
--- f: functino to get new hash from key
--- vt: last infomation
-def verifyVT [BEq k] [Hashable k] [Hashable v] [Monad M] (key : k) (value: v) (f:k->(M UInt64)) (vt : VT k v) :M Bool :=
-  match vt[key]? with
-  | none => return false
-  | some (oldValueHash,deps_key_to_hash) => if oldValueHash == (hash value)
-    then deps_key_to_hash.allM (fun (deps_key,deps_hash) => (fun hs =>hs == deps_hash ) <$> (f deps_key))
-    else return false
-
-def anyA [Applicative F] (list:List A) (f:A->F Bool):F Bool:=
-  list.foldl (fun a x=>
-    let b:=f x
-    pure (· || ·) <*> a <*> b
-    ) (pure false)
 
 def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k v) k v :=
   fun key value task => Task.mk $ fun _ fetch => do
@@ -169,5 +128,4 @@ def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k
       modify (insertVT key (hash newValue) dep_list)
       return newValue
 
-unsafe def make  [BEq k] [Hashable k]:Build Applicative (MakeInfo k) k v:=topological modTimeRebuilder
 unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k v) k v:=topological vtRebuilderA
