@@ -98,16 +98,16 @@ unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
 
     execState (mapM_ build order) store
 
-abbrev VT (k : Type) (_ : Type) [BEq k] [Hashable k]  := HashMap k (UInt64 × (List (k×UInt64)))
+abbrev VT (k : Type) [BEq k] [Hashable k]  := HashMap k (UInt64 × (List (k×UInt64)))
 
-def getHash! [BEq k] [Hashable k] (vt:VT k v) (key:k): UInt64 :=
+def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
   let res:= vt[key]!
   res.fst
 
-def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k v) : VT k v:=
+def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k) : VT k:=
   vt.insert key (hash_value, dep_hash)
 
-def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k v) k v :=
+def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k) k v :=
   fun key value task => Task.mk $ fun _ fetch => do
     let vt ← get
     let current_dep_keys := dependencies task
@@ -128,4 +128,4 @@ def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k
       modify (insertVT key (hash newValue) dep_list)
       return newValue
 
-unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k v) k v:=topological vtRebuilderA
+unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k) k v:=topological vtRebuilderA
