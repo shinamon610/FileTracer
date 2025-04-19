@@ -22,21 +22,20 @@ structure Task (c:C) (k v:Type u)  where
 
 def Tasks (c : C) (k v:Type u) := k -> Option (Task c k v)
 
-def Build  (M:Type u->Type u)[Monad M] (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> M (Store i k v)
 /-
 MonadStateM ir と書いたときに、何が保証されているのか。
 1. MonadStateM irはMonadである。 <- m extends Monadしているから。
 2. MonadStateM irはirを状態として扱える <- extends MonadState
 -/
+def Build  (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> Store i k v
 class MonadStateM (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
-instance [Monad M]: MonadStateM i (StateT i M) where
+instance : MonadStateM i (StateM i) where
 
 def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateM ir) k v
-def Scheduler (M:Type u->Type u) [Monad M] (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build M c i k v
+def Scheduler (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build c i k v
 
-
-def execState [Monad M] (state:StateT S M A) (init:S):M S:= (state.run init) <&> (·.snd)
+def execState (state:StateM S A) (init:S):S:=(state.run init).snd
 
 def gets (f:S->A) :StateM S A:=do
   let s<-get
@@ -70,9 +69,8 @@ unsafe def reachableTree {A : Type} [BEq A] [Hashable A]
 
   (build (HashSet.empty) target).fst
 
-def liftStore [Monad M] (x:StateT i M a):StateT (Store i k v) M a:=do
-  let store <- get
-  let (action,newInfo) <- x.run store.getInfo
+def liftStore (x:StateM i a):StateM (Store i k v) a:=do
+  let (action, newInfo) <- gets (fun s => x.run s.getInfo)
   modify (putInfo newInfo)
   return action
 
@@ -81,7 +79,7 @@ def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance :
 def mapM_ [Monad M](f:A->M B) (list:List A):M Unit:=discard <| list.mapM f
 
 -- topological スケジューラの実装
-unsafe def topological [BEq k] [Hashable k] [Monad M]: Scheduler M Applicative i i k v :=
+unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
   fun rebuilder tasks target store =>
 
     -- 依存関係の辺を取得
@@ -93,14 +91,14 @@ unsafe def topological [BEq k] [Hashable k] [Monad M]: Scheduler M Applicative i
     let order : List k := Tree.toposort (reachableTree dep target)
 
     -- 単一のノードをビルド
-    let build (key : k) : StateT (Store i k v) M Unit := match tasks key with
+    let build (key : k) : StateM (Store i k v) Unit := match tasks key with
       | none => return ()
       | some task => do
         let store ← get
         let value := store.getValue key
         let newTask := rebuilder key value task
-        let fetch (key : k) : StateT i M v := return (store.getValue key)
-        let newValue <- liftStore (newTask.run (inferInstance : MonadStateM i (StateT i M)) fetch)
+        let fetch (key : k) : StateM i v := return (store.getValue key)
+        let newValue <- liftStore (newTask.run (inferInstance : MonadStateM i (StateM i)) fetch)
         modify (putValue key newValue)
 
     execState (mapM_ build order) store
@@ -135,4 +133,4 @@ def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k
       modify (insertVT key (hash newValue) dep_list)
       return newValue
 
-unsafe def ninja [BEq k] [Hashable k] [Hashable v] [Monad M]:Build M Applicative (VT k) k v:=topological vtRebuilderA
+unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k) k v:=topological vtRebuilderA
