@@ -23,6 +23,11 @@ structure Task (c:C) (k v:Type u)  where
 def Tasks (c : C) (k v:Type u) := k -> Option (Task c k v)
 
 def Build  (M:Type u->Type u)[Monad M] (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> M (Store i k v)
+/-
+MonadStateM ir と書いたときに、何が保証されているのか。
+1. MonadStateM irはMonadである。 <- m extends Monadしているから。
+2. MonadStateM irはirを状態として扱える <- extends MonadState
+-/
 class MonadStateM (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
 instance [Monad M]: MonadStateM i (StateT i M) where
