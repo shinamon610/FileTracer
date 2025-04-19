@@ -72,9 +72,9 @@ unsafe def reachableTree {A : Type} [BEq A] [Hashable A]
 
 def liftStore [Monad M] (x:StateT i M a):StateT (Store i k v) M a:=do
   let store <- get
-  let (a,newInfo) <- x.run store.getInfo
+  let (action,newInfo) <- x.run store.getInfo
   modify (putInfo newInfo)
-  return a
+  return action
 
 --直接的に依存しているものを取得する
 def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance : Applicative (Const (List k))) (fun key => Const.mk [key])).getConst
