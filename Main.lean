@@ -54,14 +54,15 @@ def svtFromJson (json : Json) : Except String SVT := do
 def loadSVT (path : String) : IO SVT := do
   let content <- IO.FS.readFile path
   match parse content with
-  | .error error => panic! error
+  | .error _ => return Std.HashMap.empty
   | .ok json =>  match (svtFromJson json) with
     | .ok val => return val
-    | .error error => panic! error
+    | .error _ => return Std.HashMap.empty
 
 def human (targetPath:String) (paths: IO (List String)):IO String := do
   let paths <- paths
-  println! paths
+  println! s!"target: {targetPath}"
+  println! s!"paths: {String.intercalate ", " paths}"
   let stdin <- IO.getStdin
   let _ <- stdin.getLine
   IO.FS.readFile targetPath
@@ -81,12 +82,14 @@ def IO.sequence {α : Type} : List (IO α) → IO (List α)
 def tasks:Tasks Applicative String (IO String) := fun key =>
   match key with
     | "./Test/output.o"=> some (Task.mk fun _ fetch =>
-      let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
+      let ks: List String := ["./Test/input1.c", "./Test/input2.c", "hoge"]
+      dbg_trace s!"in output: {ks}"
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
       (human key) <$> fetched)
 
     | "./Test/exe"=> some (Task.mk fun _  fetch =>
       let ks: List String :=  ["./Test/output.o"]
+      dbg_trace s!"in exe: {ks}"
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
       (human key) <$> fetched)
     | _ => none

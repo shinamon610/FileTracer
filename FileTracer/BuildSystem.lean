@@ -90,7 +90,7 @@ def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance :
 def mapM_ [Monad M](f:A->M B) (list:List A):M Unit:=discard <| list.mapM f
 
 -- topological スケジューラの実装
-unsafe def topological [Monad M][BEq k] [Hashable k] : Scheduler M Applicative i i k v :=
+unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M Applicative i i k v :=
   fun rebuilder tasks target store =>
 
     -- 依存関係の辺を取得
@@ -148,4 +148,4 @@ def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applic
       modify (insertVT key (hash newValue) dep_list)
       return newValue
 
-unsafe def ninja [BEq k] [Hashable k] [Hashable v][Monad M]:Build M Applicative (VT k) k v:=topological vtRebuilderA
+unsafe def ninja [BEq k] [Hashable k][ToString k] [Hashable v][Monad M]:Build M Applicative (VT k) k v:=topological vtRebuilderA
