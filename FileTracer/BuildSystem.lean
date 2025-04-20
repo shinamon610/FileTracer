@@ -6,7 +6,7 @@ open Std
 namespace BuildSystem
 universe u v
 
-structure Store (i k v:Type u) where
+structure Store (i k v:Type) where
   getInfo:i
   getValue:k->v
 
@@ -27,13 +27,13 @@ MonadStateT ir と書いたときに、何が保証されているのか。
 1. MonadStateT irはMonadである。 <- m extends Monadしているから。
 2. MonadStateT irはirを状態として扱える <- extends MonadState
 -/
-def Build  (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> Store i k v
+def Build  (c:C) (i k v:Type):= Tasks c k v -> k -> Store i k v -> Store i k v
 class MonadStateT (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
 instance [Monad M]: MonadStateT i (StateT i M) where
 
 def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateT ir) k v
-def Scheduler (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build c i k v
+def Scheduler (c:C) (i ir k v:Type):= Rebuilder c ir k v-> Build c i k v
 
 def execState (state:StateM S A) (init:S):S:=(state.run init).snd
 
