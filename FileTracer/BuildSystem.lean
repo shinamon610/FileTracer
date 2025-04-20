@@ -30,7 +30,7 @@ MonadStateM ir と書いたときに、何が保証されているのか。
 def Build  (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> Store i k v
 class MonadStateM (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
-instance : MonadStateM i (StateM i) where
+instance [Monad M]: MonadStateM i (StateT i M) where
 
 def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateM ir) k v
 def Scheduler (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build c i k v
