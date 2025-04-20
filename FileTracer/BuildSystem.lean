@@ -23,16 +23,16 @@ structure Task (c:C) (k v:Type u)  where
 def Tasks (c : C) (k v:Type u) := k -> Option (Task c k v)
 
 /-
-MonadStateM ir と書いたときに、何が保証されているのか。
-1. MonadStateM irはMonadである。 <- m extends Monadしているから。
-2. MonadStateM irはirを状態として扱える <- extends MonadState
+MonadStateT ir と書いたときに、何が保証されているのか。
+1. MonadStateT irはMonadである。 <- m extends Monadしているから。
+2. MonadStateT irはirを状態として扱える <- extends MonadState
 -/
 def Build  (c:C) (i k v:Type u):= Tasks c k v -> k -> Store i k v -> Store i k v
-class MonadStateM (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
+class MonadStateT (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
-instance [Monad M]: MonadStateM i (StateT i M) where
+instance [Monad M]: MonadStateT i (StateT i M) where
 
-def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateM ir) k v
+def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateT ir) k v
 def Scheduler (c:C) (i ir k v:Type u):= Rebuilder c ir k v-> Build c i k v
 
 def execState (state:StateM S A) (init:S):S:=(state.run init).snd
@@ -98,7 +98,7 @@ unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
         let value := store.getValue key
         let newTask := rebuilder key value task
         let fetch (key : k) : StateM i v := return (store.getValue key)
-        let newValue <- liftStore (newTask.run (inferInstance : MonadStateM i (StateM i)) fetch)
+        let newValue <- liftStore (newTask.run (inferInstance : MonadStateT i (StateM i)) fetch)
         modify (putValue key newValue)
 
     execState (mapM_ build order) store
