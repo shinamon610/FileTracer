@@ -22,8 +22,8 @@ def C := (Type u -> Type v)-> Type (max (u+1) v)
 structure Task (c:C) (k v:Type) where
   run :(c f) -> (k->f v)->f v
 
-structure TaskS (M)[Monad M](ir k v:Type)  where
-  run : (k->StateT ir M v)->StateT ir M v
+structure TaskS (M)[Monad M](i k v:Type)  where
+  run : (k->StateT i M (M v))->StateT i M v
 
 def Tasks (c : C) (k v:Type) := k -> Option (Task c k v)
 
@@ -41,11 +41,6 @@ def Rebuilder (M)[Monad M](c:C) (ir k v :Type)[BEq k][Hashable k]:=k->M v->Task 
 def Scheduler (M)[Monad M](c:C) (i k v:Type)[BEq k][Hashable k]:= Rebuilder M c i k v-> Build M c i k v
 
 def execState [Monad M](state:StateT S M A) (init:S):M S:= (state.run init) <&> fun (_,s) => s
-
-def immvToimv [Monad M](state:StateT i M (M v)):StateT i M v:=fun info => do
-  let (mv,newInfo)<- state.run info
-  let value <- mv
-  return (value, newInfo)
 
 def gets [Monad M](f:S->A) :StateT S M A:=do
   let s<-get
@@ -110,8 +105,7 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
         | some task => task
       let mv := store.getValue key
       let newTask := rebuilder key mv tk
-      let fetch (_ : k) : StateT i M v := immvToimv (return mv)
-      let newValue <- liftStore (newTask.run fetch)
+      let newValue <- liftStore (newTask.run (fun _ => return mv))
       modify (putValue key newValue)
 
     execState (mapM_ build order) store
@@ -141,10 +135,7 @@ def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applic
       let value<- mv
       return value
     else
-      let mmfetch (_key:k):StateT (VT k) M (M v) :=  do
-        let res <- fetch _key
-        return (return res)
-      let mv <- task.run (inferInstance : Applicative _) mmfetch
+      let mv <- task.run (inferInstance : Applicative _) fetch
       let newValue <- mv
       let dep_list:=current_dep_keys.map (fun cdk=>(cdk,getHash! vt cdk))
       modify (insertVT key (hash newValue) dep_list)
