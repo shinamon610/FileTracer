@@ -6,13 +6,13 @@ open Std
 namespace BuildSystem
 universe u v
 
-structure Store (i k v:Type) where
+structure Store (M)[Monad M](i k v:Type) where
   getInfo:i
-  getValue:k->v
+  getValue:k->M v
 
-def putInfo (info:i) (store:Store i k v):Store i k v:={store with getInfo:=info}
-def putValue [BEq k] (key:k) (value:v) (store:Store i k v):Store i k v:=
-  let table := fun n_key:k =>if n_key == key then value else store.getValue n_key
+def putInfo [Monad M](info:i) (store:Store M i k v):Store M i k v:={store with getInfo:=info}
+def putValue [BEq k] [Monad M](key:k) (value:v) (store:Store M i k v):Store M i k v:=
+  let table := fun n_key:k =>if n_key == key then return value else store.getValue n_key
   {store with getValue:=table}
 
 def C := (Type u -> Type v)-> Type (max (u+1) v)
@@ -27,17 +27,17 @@ MonadStateT ir と書いたときに、何が保証されているのか。
 1. MonadStateT irはMonadである。 <- m extends Monadしているから。
 2. MonadStateT irはirを状態として扱える <- extends MonadState
 -/
-def Build  (c:C) (i k v:Type):= Tasks c k v -> k -> Store i k v -> Store i k v
+def Build  (M)[Monad M](c:C) (i k v:Type):= Tasks c k (M v) -> k -> Store M i k v -> M (Store M i k v)
 class MonadStateT (σ : Type u) (m : Type u → Type v) extends MonadState σ m, Monad m
 
 instance [Monad M]: MonadStateT i (StateT i M) where
 
-def Rebuilder (c:C) (ir k v :Type u):=k->v->Task c k v->Task (MonadStateT ir) k v
-def Scheduler (c:C) (i ir k v:Type):= Rebuilder c ir k v-> Build c i k v
+def Rebuilder (M)[Monad M](c:C) (ir k v :Type):=k->M v->Task c k (M v)->Task (MonadStateT ir) k (M v)
+def Scheduler (M)[Monad M](c:C) (i ir k v:Type):= Rebuilder M c ir k v-> Build M c i k v
 
-def execState (state:StateM S A) (init:S):S:=(state.run init).snd
+def execState [Monad M](state:StateT S M A) (init:S):M S:= (state.run init) <&> fun (_,s) => s
 
-def gets (f:S->A) :StateM S A:=do
+def gets [Monad M](f:S->A) :StateT S M A:=do
   let s<-get
   return f s
 
@@ -69,8 +69,9 @@ unsafe def reachableTree {A : Type} [BEq A] [Hashable A]
 
   (build (HashSet.empty) target).fst
 
-def liftStore (x:StateM i a):StateM (Store i k v) a:=do
-  let (action, newInfo) <- gets (fun s => x.run s.getInfo)
+def liftStore [Monad M] (x:StateT i M a):StateT (Store M i k v) M a:=do
+  let temp <- gets (fun s => x.run s.getInfo)
+  let (action, newInfo) <- temp
   modify (putInfo newInfo)
   return action
 
@@ -79,7 +80,7 @@ def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance :
 def mapM_ [Monad M](f:A->M B) (list:List A):M Unit:=discard <| list.mapM f
 
 -- topological スケジューラの実装
-unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
+unsafe def topological [Monad M][BEq k] [Hashable k] : Scheduler M Applicative i i k v :=
   fun rebuilder tasks target store =>
 
     -- 依存関係の辺を取得
@@ -91,14 +92,15 @@ unsafe def topological [BEq k] [Hashable k] : Scheduler Applicative i i k v :=
     let order : List k := Tree.toposort (reachableTree dep target)
 
     -- 単一のノードをビルド
-    let build (key : k) : StateM (Store i k v) Unit := match tasks key with
+    let build (key : k) : StateT (Store M i k v) M Unit := match tasks key with
       | none => return ()
       | some task => do
         let store ← get
-        let value := store.getValue key
-        let newTask := rebuilder key value task
-        let fetch (key : k) : StateM i v := return (store.getValue key)
-        let newValue <- liftStore (newTask.run (inferInstance : MonadStateT i (StateM i)) fetch)
+        let value <- store.getValue key
+        let newTask := rebuilder key (return value) task
+        let fetch (key : k) : StateT i M (M v) := return store.getValue key
+        let mv <- liftStore (newTask.run (inferInstance : MonadStateT i (StateT i M)) fetch)
+        let newValue <- mv
         modify (putValue key newValue)
 
     execState (mapM_ build order) store
@@ -112,7 +114,7 @@ def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
 def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k) : VT k:=
   vt.insert key (hash_value, dep_hash)
 
-def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k) k v :=
+def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applicative (VT k) k v :=
   fun key value task => Task.mk $ fun _ fetch => do
     let vt ← get
     let current_dep_keys := dependencies task
@@ -133,4 +135,4 @@ def vtRebuilderA [BEq k] [Hashable k] [Hashable v] : Rebuilder Applicative (VT k
       modify (insertVT key (hash newValue) dep_list)
       return newValue
 
-unsafe def ninja [BEq k] [Hashable k] [Hashable v]:Build Applicative (VT k) k v:=topological vtRebuilderA
+unsafe def ninja [BEq k] [Hashable k] [Hashable v][Monad M]:Build M Applicative (VT k) k v:=topological vtRebuilderA
