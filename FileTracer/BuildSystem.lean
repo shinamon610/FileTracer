@@ -6,6 +6,8 @@ open Std
 namespace BuildSystem
 universe u v
 
+abbrev VT (k : Type) [BEq k] [Hashable k]  := HashMap k (UInt64 × (List (k×UInt64)))
+
 structure Store (M)[Monad M](i k v:Type) where
   getInfo:i
   getValue:k->M v
@@ -17,10 +19,13 @@ def putValue [BEq k] [Monad M](key:k) (value:v) (store:Store M i k v):Store M i 
 
 def C := (Type u -> Type v)-> Type (max (u+1) v)
 
-structure Task (c:C) (k v:Type u)  where
+structure Task (c:C) (k v:Type) where
   run :(c f) -> (k->f v)->f v
 
-def Tasks (c : C) (k v:Type u) := k -> Option (Task c k v)
+structure TaskS (M)[Monad M](ir k v:Type)  where
+  run : (k->StateT ir M v)->StateT ir M v
+
+def Tasks (c : C) (k v:Type) := k -> Option (Task c k v)
 
 /-
 MonadStateT ir と書いたときに、何が保証されているのか。
@@ -32,10 +37,15 @@ class MonadStateT (σ : Type u) (m : Type u → Type v) extends MonadState σ m,
 
 instance [Monad M]: MonadStateT i (StateT i M) where
 
-def Rebuilder (M)[Monad M](c:C) (ir k v :Type):=k->M v->Task c k (M v)->Task (MonadStateT ir) k (M v)
-def Scheduler (M)[Monad M](c:C) (i ir k v:Type):= Rebuilder M c ir k v-> Build M c i k v
+def Rebuilder (M)[Monad M](c:C) (ir k v :Type)[BEq k][Hashable k]:=k->M v->Task c k (M v)->TaskS M ir k v
+def Scheduler (M)[Monad M](c:C) (i ir k v:Type)[BEq k][Hashable k]:= Rebuilder M c ir k v-> Build M c i k v
 
 def execState [Monad M](state:StateT S M A) (init:S):M S:= (state.run init) <&> fun (_,s) => s
+
+def immvToimv [Monad M](state:StateT i M (M v)):StateT i M v:=fun info => do
+  let (mv,newInfo)<- state.run info
+  let value <- mv
+  return (value, newInfo)
 
 def gets [Monad M](f:S->A) :StateT S M A:=do
   let s<-get
@@ -98,14 +108,12 @@ unsafe def topological [Monad M][BEq k] [Hashable k] : Scheduler M Applicative i
         let store ← get
         let value <- store.getValue key
         let newTask := rebuilder key (return value) task
-        let fetch (key : k) : StateT i M (M v) := return store.getValue key
-        let mv <- liftStore (newTask.run (inferInstance : MonadStateT i (StateT i M)) fetch)
-        let newValue <- mv
+        let fetch (key : k) : StateT i M v := immvToimv (return store.getValue key)
+        let newValue <- liftStore (newTask.run fetch)
         modify (putValue key newValue)
 
     execState (mapM_ build order) store
 
-abbrev VT (k : Type) [BEq k] [Hashable k]  := HashMap k (UInt64 × (List (k×UInt64)))
 
 def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
   let res:= vt[key]!
@@ -115,7 +123,7 @@ def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List 
   vt.insert key (hash_value, dep_hash)
 
 def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applicative (VT k) k v :=
-  fun key value task => Task.mk $ fun _ fetch => do
+  fun key mv task => TaskS.mk $ fun fetch => do
     let vt ← get
     let current_dep_keys := dependencies task
     let dirty := match vt[key]? with
@@ -128,9 +136,14 @@ def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applic
           )
 
     if !dirty then
+      let value<- mv
       return value
     else
-      let newValue<- task.run (inferInstance : Applicative _) fetch
+      let mmfetch (_key:k):StateT (VT k) M (M v) :=  do
+        let res <- fetch key
+        return (return res)
+      let mv <- task.run (inferInstance : Applicative _) mmfetch
+      let newValue <- mv
       let dep_list:=current_dep_keys.map (fun cdk=>(cdk,getHash! vt cdk))
       modify (insertVT key (hash newValue) dep_list)
       return newValue
