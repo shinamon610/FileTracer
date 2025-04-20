@@ -8,7 +8,7 @@ open Lean
 
 structure VTEntry (hashValue : UInt64) (deps : List (String × UInt64)) deriving Inhabited
 
-def SVT := VT String String
+def SVT := VT String
 
 def svtToJson (svt : SVT) : Json :=
   let entries : List (Json) :=
@@ -59,12 +59,37 @@ def loadSVT (path : String) : IO SVT := do
     | .ok val => return val
     | .error error => panic! error
 
-def tasks:Tasks Applicative String String
-| "./Test/output.o"=> some (Task.mk fun _ => fun fetch => ((· ++ ·) <$> fetch "./Test/input1.c" <*> fetch "./Test/input2.c"))
-| "./Test/exe"=> some (Task.mk fun _ => fun fetch => ((fun txt=>"exe:"++txt) <$> fetch "./Test/output.o"))
-| "./Test/input1.c"=> some (Task.mk fun _ => fun _ => pure "input1.c")
-| "./Test/input2.c"=> some (Task.mk fun _ => fun _ => pure "input2.c")
-| _ => none
+def human (targetPath:String) (paths: IO (List String)):IO String := do
+  let paths <- paths
+  println! paths
+  let stdin <- IO.getStdin
+  let _ <- stdin.getLine
+  IO.FS.readFile targetPath
+
+def List.sequence {f : Type u → Type v} [Applicative f] {α : Type u} :
+  List (f α) → f (List α)
+| []      => pure []
+| x :: xs => pure (List.cons) <*> x <*> sequence xs
+
+def IO.sequence {α : Type} : List (IO α) → IO (List α)
+| []      => pure []
+| x :: xs => do
+  let a ← x
+  let as ← IO.sequence xs
+  pure (a :: as)
+
+def tasks:Tasks Applicative String (IO String) := fun key =>
+  match key with
+    | "./Test/output.o"=> some (Task.mk fun _ fetch =>
+      let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
+      let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
+      (human key) <$> fetched)
+
+    | "./Test/exe"=> some (Task.mk fun _  fetch =>
+      let ks: List String :=  ["./Test/output.o"]
+      let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
+      (human key) <$> fetched)
+    | _ => none
 
 def saveSVT (path : String) (vt : SVT) : IO Unit := do
   let json := svtToJson vt
@@ -73,8 +98,6 @@ def saveSVT (path : String) (vt : SVT) : IO Unit := do
 unsafe def main : IO Unit := do
   let svt_json:="svt.json"
   let svt<-loadSVT svt_json
-  let init:Store SVT String String:=⟨svt, fun key=>if key=="A1" then "" else ""⟩
-  let res:=(ninja tasks "./Test/exe" init).getValue
-  dbg_trace res "./Test/exe"
-  let new_svt:=(ninja tasks "./Test/exe" init).getInfo
-  saveSVT svt_json new_svt
+  let init:Store IO SVT String String := ⟨svt, fun key=>IO.FS.readFile key⟩
+  let newSvt <- (ninja tasks "./Test/exe" init) <&> fun x => x.getInfo
+  saveSVT svt_json newSvt
