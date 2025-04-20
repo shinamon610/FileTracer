@@ -100,6 +100,7 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
 
     -- ノードの実行順序を計算
     let order : List k := Tree.toposort (reachableTree dep target)
+    dbg_trace s!"order: {order}"
 
     -- 単一のノードをビルド
     let build (key : k) : StateT (Store M i k v) M Unit := do
