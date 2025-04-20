@@ -38,7 +38,7 @@ class MonadStateT (σ : Type u) (m : Type u → Type v) extends MonadState σ m,
 instance [Monad M]: MonadStateT i (StateT i M) where
 
 def Rebuilder (M)[Monad M](c:C) (ir k v :Type)[BEq k][Hashable k]:=k->M v->Task c k (M v)->TaskS M ir k v
-def Scheduler (M)[Monad M](c:C) (i ir k v:Type)[BEq k][Hashable k]:= Rebuilder M c ir k v-> Build M c i k v
+def Scheduler (M)[Monad M](c:C) (i k v:Type)[BEq k][Hashable k]:= Rebuilder M c i k v-> Build M c i k v
 
 def execState [Monad M](state:StateT S M A) (init:S):M S:= (state.run init) <&> fun (_,s) => s
 
@@ -90,27 +90,28 @@ def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance :
 def mapM_ [Monad M](f:A->M B) (list:List A):M Unit:=discard <| list.mapM f
 
 -- topological スケジューラの実装
-unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M Applicative i i k v :=
+unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M Applicative i k v :=
   fun rebuilder tasks target store =>
 
     -- 依存関係の辺を取得
     let dep (key : k) : List k := match tasks key with
       | none => []
-      | some task => dependencies task
+      | some task =>dependencies task
 
     -- ノードの実行順序を計算
     let order : List k := Tree.toposort (reachableTree dep target)
 
     -- 単一のノードをビルド
-    let build (key : k) : StateT (Store M i k v) M Unit := match tasks key with
-      | none => return ()
-      | some task => do
-        let store ← get
-        let value <- store.getValue key
-        let newTask := rebuilder key (return value) task
-        let fetch (key : k) : StateT i M v := immvToimv (return store.getValue key)
-        let newValue <- liftStore (newTask.run fetch)
-        modify (putValue key newValue)
+    let build (key : k) : StateT (Store M i k v) M Unit := do
+      let store <- get
+      let tk := match tasks key with
+        | none => Task.mk $ fun _ _ => pure (store.getValue key)
+        | some task => task
+      let mv := store.getValue key
+      let newTask := rebuilder key mv tk
+      let fetch (_ : k) : StateT i M v := immvToimv (return mv)
+      let newValue <- liftStore (newTask.run fetch)
+      modify (putValue key newValue)
 
     execState (mapM_ build order) store
 
@@ -140,7 +141,7 @@ def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applic
       return value
     else
       let mmfetch (_key:k):StateT (VT k) M (M v) :=  do
-        let res <- fetch key
+        let res <- fetch _key
         return (return res)
       let mv <- task.run (inferInstance : Applicative _) mmfetch
       let newValue <- mv
