@@ -95,7 +95,6 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
 
     -- ノードの実行順序を計算
     let order : List k := Tree.toposort (reachableTree dep target)
-    dbg_trace s!"order: {order}"
 
     -- 単一のノードをビルド
     let build (key : k) : StateT (Store M i k v) M Unit := do
@@ -118,18 +117,19 @@ def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
 def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k) : VT k:=
   vt.insert key (hash_value, dep_hash)
 
-def vtRebuilderA [Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applicative (VT k) k v :=
+def vtRebuilderA [ToString k][Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applicative (VT k) k v :=
   fun key mv task => TaskS.mk $ fun fetch => do
     let vt ← get
     let current_dep_keys := dependencies task
+    let current_hash <- mv <&> (hash ·)
     let dirty := match vt[key]? with
       | none => true
-      | some (_, last_dep_key_to_hash) =>
-          current_dep_keys.all (fun current_dep_key =>
-            match last_dep_key_to_hash.find? (fun (last_key,_)=>current_dep_key==last_key) with
-            | none => true
-            | some (_,last_hash) => getHash! vt current_dep_key == last_hash
-          )
+      | some (last_hash, last_dep_key_to_hash) =>
+        current_hash != last_hash || !current_dep_keys.all (fun current_dep_key =>
+          match last_dep_key_to_hash.find? (fun (last_key,_)=>current_dep_key==last_key) with
+          | none => true
+          | some (_,last_hash) => getHash! vt current_dep_key == last_hash
+        )
 
     if !dirty then
       let value<- mv

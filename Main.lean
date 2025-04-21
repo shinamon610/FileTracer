@@ -83,15 +83,12 @@ def IO.sequence {α : Type} : List (IO α) → IO (List α)
 def tasks:Tasks Applicative String (IO String) := fun key =>
   match key with
     | "./Test/output.o"=> some (Task.mk fun _ fetch =>
-      dbg_trace s!"in output"
       let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-      dbg_trace s!"in outpu2"
       (human key ks) <$> fetched)
 
     | "./Test/exe"=> some (Task.mk fun _  fetch =>
       let ks: List String :=  ["./Test/output.o"]
-      dbg_trace s!"in exe: {ks}"
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
       (human key ks) <$> fetched)
     | _ => none
@@ -105,8 +102,6 @@ unsafe def main : IO Unit := do
   let svt<-loadSVT svt_json
   let init:Store IO SVT String String := ⟨svt, fun key=> do
     let n<-IO.FS.readFile key
-    dbg_trace s!"key: {key}"
-    dbg_trace s!"store: {n}"
     return n
     ⟩
   let newSvt <- (ninja tasks "./Test/exe" init) <&> fun x => x.getInfo
