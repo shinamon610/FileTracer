@@ -59,11 +59,12 @@ def loadSVT (path : String) : IO SVT := do
     | .ok val => return val
     | .error _ => return Std.HashMap.empty
 
-def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (fetched: IO (List String)) :IO String := do
+def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (comment:String) (fetched: IO (List String)) :IO String := do
   let _ <- fetched
   println! s!"target: {targetPath}"
   println! s!"paths: {String.intercalate ", " paths}"
   println! s!"dirty!: {dirty_keys}"
+  println! s!"comment {comment}"
 
   let stdin <- IO.getStdin
   let _ <- stdin.getLine
