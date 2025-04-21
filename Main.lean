@@ -59,8 +59,9 @@ def loadSVT (path : String) : IO SVT := do
     | .ok val => return val
     | .error _ => return Std.HashMap.empty
 
-def human (targetPath:String) (paths: IO (List String)):IO String := do
-  let paths <- paths
+def human (targetPath:String) (paths: List String) (fetched: IO (List String)):IO String := do
+  println! s!"start"
+  let _ <- fetched
   println! s!"target: {targetPath}"
   println! s!"paths: {String.intercalate ", " paths}"
   let stdin <- IO.getStdin
@@ -82,16 +83,17 @@ def IO.sequence {α : Type} : List (IO α) → IO (List α)
 def tasks:Tasks Applicative String (IO String) := fun key =>
   match key with
     | "./Test/output.o"=> some (Task.mk fun _ fetch =>
+      dbg_trace s!"in output"
       let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
-      dbg_trace s!"in output: {ks}"
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-      (human key) <$> fetched)
+      dbg_trace s!"in outpu2"
+      (human key ks) <$> fetched)
 
     | "./Test/exe"=> some (Task.mk fun _  fetch =>
       let ks: List String :=  ["./Test/output.o"]
       dbg_trace s!"in exe: {ks}"
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-      (human key) <$> fetched)
+      (human key ks) <$> fetched)
     | _ => none
 
 def saveSVT (path : String) (vt : SVT) : IO Unit := do
