@@ -59,11 +59,12 @@ def loadSVT (path : String) : IO SVT := do
     | .ok val => return val
     | .error _ => return Std.HashMap.empty
 
-def human (targetPath:String) (paths: List String) (fetched: IO (List String)):IO String := do
-  println! s!"start"
+def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (fetched: IO (List String)) :IO String := do
   let _ <- fetched
   println! s!"target: {targetPath}"
   println! s!"paths: {String.intercalate ", " paths}"
+  println! s!"dirty!: {dirty_keys}"
+
   let stdin <- IO.getStdin
   let _ <- stdin.getLine
   IO.FS.readFile targetPath
@@ -82,15 +83,15 @@ def IO.sequence {α : Type} : List (IO α) → IO (List α)
 
 def tasks:Tasks Applicative String (IO String) := fun key =>
   match key with
-    | "./Test/output.o"=> some (Task.mk fun _ fetch =>
+    | "./Test/output.o"=> some (Task.mk fun _ fetch dirty_keys =>
       let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-      (human key ks) <$> fetched)
+      (human key ks dirty_keys) <$> fetched)
 
-    | "./Test/exe"=> some (Task.mk fun _  fetch =>
+    | "./Test/exe"=> some (Task.mk fun _  fetch dirty_keys =>
       let ks: List String :=  ["./Test/output.o"]
       let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-      (human key ks) <$> fetched)
+      (human key ks dirty_keys) <$> fetched)
     | _ => none
 
 def saveSVT (path : String) (vt : SVT) : IO Unit := do

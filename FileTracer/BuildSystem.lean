@@ -19,13 +19,15 @@ def putValue [BEq k] [Monad M](key:k) (value:v) (store:Store M i k v):Store M i 
 
 def C := (Type u -> Type v)-> Type (max (u+1) v)
 
+abbrev DirtyInfo k := List k
+
 structure Task (c:C) (k v:Type) where
-  run :(c f) -> (k->f v)->f v
+  run :(c f) -> (k->f v)->DirtyInfo k->f v
 
 structure TaskS (M)[Monad M](i k v:Type)  where
   run : (k->StateT i M (M v))->StateT i M v
 
-def Tasks (c : C) (k v:Type) := k -> Option (Task c k v)
+def Tasks (c : C) (k v:Type) := k  -> Option (Task c k v)
 
 /-
 MonadStateT ir と書いたときに、何が保証されているのか。
@@ -81,7 +83,7 @@ def liftStore [Monad M] (x:StateT i M a):StateT (Store M i k v) M a:=do
   return action
 
 --直接的に依存しているものを取得する
-def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance : Applicative (Const (List k))) (fun key => Const.mk [key])).getConst
+def dependencies (task:Task Applicative k v):List k:= (task.run (inferInstance : Applicative (Const (List k))) (fun key => Const.mk [key]) []).getConst
 def mapM_ [Monad M](f:A->M B) (list:List A):M Unit:=discard <| list.mapM f
 
 -- topological スケジューラの実装
@@ -100,7 +102,7 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
     let build (key : k) : StateT (Store M i k v) M Unit := do
       let store <- get
       let tk := match tasks key with
-        | none => Task.mk $ fun _ _ => pure (store.getValue key)
+        | none => Task.mk $ fun _ _ _ => pure (store.getValue key)
         | some task => task
       let mv := store.getValue key
       let newTask := rebuilder key mv tk
@@ -117,25 +119,31 @@ def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
 def insertVT [BEq k] [Hashable k]  (key : k) (hash_value:UInt64) (dep_hash:List (k×UInt64)) (vt:VT k) : VT k:=
   vt.insert key (hash_value, dep_hash)
 
+def find_dirty [BEq k] [Hashable k] (vt:VT k) (key:k)(current_hash:UInt64)(current_dep_keys:List k): DirtyInfo k :=
+    match vt[key]? with
+      | none => [key]
+      | some (last_hash, last_dep_key_to_hash) =>
+        let dirty_deps:=current_dep_keys.filter (fun current_dep_key =>
+          match last_dep_key_to_hash.find? (fun (last_key,_)=>current_dep_key==last_key) with
+          | none => true
+          | some (_,last_hash) => getHash! vt current_dep_key != last_hash
+        )
+        if current_hash == last_hash
+        then dirty_deps
+        else key::dirty_deps
+
 def vtRebuilderA [ToString k][Monad M][BEq k] [Hashable k] [Hashable v] : Rebuilder M Applicative (VT k) k v :=
   fun key mv task => TaskS.mk $ fun fetch => do
     let vt ← get
     let current_dep_keys := dependencies task
     let current_hash <- mv <&> (hash ·)
-    let dirty := match vt[key]? with
-      | none => true
-      | some (last_hash, last_dep_key_to_hash) =>
-        current_hash != last_hash || !current_dep_keys.all (fun current_dep_key =>
-          match last_dep_key_to_hash.find? (fun (last_key,_)=>current_dep_key==last_key) with
-          | none => true
-          | some (_,last_hash) => getHash! vt current_dep_key == last_hash
-        )
+    let dirty_keys := find_dirty vt key current_hash current_dep_keys
 
-    if !dirty then
+    if dirty_keys.length == 0 then
       let value<- mv
       return value
     else
-      let mv <- task.run (inferInstance : Applicative _) fetch
+      let mv <- task.run (inferInstance : Applicative _) fetch dirty_keys
       let newValue <- mv
       let dep_list:=current_dep_keys.map (fun cdk=>(cdk,getHash! vt cdk))
       modify (insertVT key (hash newValue) dep_list)
