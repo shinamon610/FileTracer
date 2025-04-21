@@ -1,4 +1,5 @@
 .direnv
 /.lake
 .envrc
-svt.json
+ninja.json
+
