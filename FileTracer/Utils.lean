@@ -24,3 +24,7 @@ def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit):
             let ks := (children <&> top) <&> (HasFilePathAndComment.path ·)
             let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
             (human key ks dirty_keys (HasFilePathAndComment.comment a) ) <$> fetched
+
+def toWinPath (path:System.FilePath):System.FilePath :=
+  let c := path.toString.take 2
+  c++ (System.FilePath.normalize (path.toString.drop 2)).toString
