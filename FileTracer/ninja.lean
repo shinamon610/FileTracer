@@ -59,7 +59,7 @@ def loadSVT (path : String) : IO SVT := do
     | .ok val => return val
     | .error _ => return Std.HashMap.empty
 
-def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (comment:String) (fetched: IO (List String)) :IO String := do
+def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (comment:String) (fetched: IO (List ByteArray)) :IO ByteArray := do
   let _ <- fetched
   println! s!"target: {targetPath}"
   println! s!"paths: {String.intercalate ", " paths}"
@@ -68,7 +68,7 @@ def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String
 
   let stdin <- IO.getStdin
   let _ <- stdin.getLine
-  IO.FS.readFile targetPath
+  IO.FS.readBinFile targetPath
 
 def List.sequence {f : Type u → Type v} [Applicative f] {α : Type u} :
   List (f α) → f (List α)
@@ -86,11 +86,11 @@ def saveSVT (path : String) (vt : SVT) : IO Unit := do
   let json := svtToJson vt
   IO.FS.writeFile path json.compress
 
-unsafe def main_process (tasks:Tasks Applicative String (IO String)) (target: String) : IO Unit := do
+unsafe def main_process (tasks:Tasks Applicative String (IO ByteArray)) (target: String) : IO Unit := do
   let svt_json:="ninja.json"
   let svt<-loadSVT svt_json
-  let init:Store IO SVT String String := ⟨svt, fun key=> do
-    let n<-IO.FS.readFile key
+  let init:Store IO SVT String ByteArray := ⟨svt, fun key=> do
+    let n<-IO.FS.readBinFile key
     return n
     ⟩
   let newSvt <- (ninja tasks target init) <&> fun x => x.getInfo

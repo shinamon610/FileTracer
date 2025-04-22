@@ -5,7 +5,7 @@ import FileTracer.Utils
 open DAG
 open BuildSystem
 
-def tasks:Tasks Applicative String (IO String) := fun key =>
+def tasks:Tasks Applicative String (IO ByteArray) := fun key =>
   match key with
     | "./Test/output.o"=> some (BuildSystem.Task.mk fun _ fetch dirty_keys =>
       let ks: List String := ["./Test/input1.c", "./Test/input2.c"]
