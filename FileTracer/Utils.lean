@@ -26,5 +26,4 @@ def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit):
             (human key ks dirty_keys (HasFilePathAndComment.comment a) ) <$> fetched
 
 def toWinPath (path:System.FilePath):System.FilePath :=
-  let c := path.toString.take 2
-  c++ (System.FilePath.normalize (path.toString.drop 2)).toString
+  "C:" ++ (System.FilePath.normalize (path.toString.drop 2)).toString
