@@ -1,6 +1,8 @@
 import FileTracer.ninja
 import Lean4MyLib.DAG
 import FileTracer.BuildSystem
+import Lean4MyLib.MyState
+open MyState
 open DAG
 open BuildSystem
 

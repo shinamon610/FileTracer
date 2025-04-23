@@ -1,5 +1,7 @@
 import Lean4MyLib.DAG
 import Std
+import Lean4MyLib.MyState
+open MyState
 open DAG
 open Std
 
@@ -41,8 +43,6 @@ instance [Monad M]: MonadStateT i (StateT i M) where
 
 def Rebuilder (M)[Monad M](c:C) (ir k v :Type)[BEq k][Hashable k]:=k->M v->Task c k (M v)->TaskS M ir k v
 def Scheduler (M)[Monad M](c:C) (i k v:Type)[BEq k][Hashable k]:= Rebuilder M c i k v-> Build M c i k v
-
-def execState [Monad M](state:StateT S M A) (init:S):M S:= (state.run init) <&> fun (_,s) => s
 
 def gets [Monad M](f:S->A) :StateT S M A:=do
   let s<-get
