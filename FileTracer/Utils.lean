@@ -11,7 +11,7 @@ class HasFilePathAndComment (A:Type) where
 def empty:StateM S Unit := return ()
 def root [Inhabited A]:  (DAG A) := DAG.Node default []
 
-def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit):Tasks Applicative String (IO ByteArray) := fun key =>
+def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit) (readBinIO:String ->IO ByteArray):Tasks Applicative String (IO ByteArray) := fun key =>
   let ds := (execState sd root).run
   let condition:A ->Bool := (fun d => (HasFilePathAndComment.path d) == key)
   match find condition ds with
@@ -23,7 +23,7 @@ def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit):
           some $ BuildSystem.Task.mk fun _ fetch dirty_keys =>
             let ks := (children <&> top) <&> (HasFilePathAndComment.path ·)
             let fetched := (List.sequence (ks.map fetch)) <&> IO.sequence
-            (human key ks dirty_keys (HasFilePathAndComment.comment a) ) <$> fetched
+            (human key ks dirty_keys (HasFilePathAndComment.comment a) readBinIO) <$> fetched
 
 def toWinPath (path:System.FilePath):System.FilePath :=
   "C:" ++ (System.FilePath.normalize (path.toString.drop 2)).toString
