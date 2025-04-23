@@ -10,7 +10,6 @@ class HasFilePathAndComment (A:Type) where
   path:A->String
   comment:A->String
 
-def empty:StateM S Unit := return ()
 def root [Inhabited A]:  (DAG A) := DAG.Node default []
 
 def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit) (readBinIO:String ->IO ByteArray):Tasks Applicative String (IO ByteArray) := fun key =>
