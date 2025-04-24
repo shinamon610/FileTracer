@@ -13,7 +13,7 @@ class HasFilePathAndComment (A:Type) where
 def root [Inhabited A]:  (DAG A) := DAG.Node default []
 
 def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (DAG A) Unit) (readBinIO:String ->IO ByteArray):Tasks Applicative String (IO ByteArray) := fun key =>
-  let ds := (execState sd root).run
+  let ds := (exec sd root).run
   let condition:A ->Bool := (fun d => (HasFilePathAndComment.path d) == key)
   match find condition ds with
     | none => none

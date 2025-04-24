@@ -109,7 +109,7 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
       let newValue <- liftStore (newTask.run (fun _key => return store.getValue _key))
       modify (putValue key newValue)
 
-    execState (mapM_ build order) store
+    exec (mapM_ build order) store
 
 
 def getHash! [BEq k] [Hashable k] (vt:VT k) (key:k): UInt64 :=
