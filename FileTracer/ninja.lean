@@ -11,12 +11,13 @@ structure VTEntry (hashValue : UInt64) (deps : List (String × UInt64)) deriving
 def SVT := VT String
 
 def svtToJson (svt : SVT) : Json :=
-  let entries : List (Json) :=
-    svt.toList.map (fun (k, (hashVal, deps)) =>
-      mkObj [ ("key", toJson k)
-            , ("hash", toJson hashVal)
-            , ("deps", toJson (deps.map (fun (d, h) => mkObj [("depKey", toJson d), ("depHash", toJson h)])))
-            ]
+  let sortedEntries := List.mergeSort svt.toList (fun a b => a.fst < b.fst)
+  let entries : List (Json) := sortedEntries.map (fun (k, (hashVal, deps)) =>
+    let sortedDeps := List.mergeSort deps (fun a b => a.fst < b.fst)
+    mkObj [ ("key", toJson k)
+          , ("hash", toJson hashVal)
+          , ("deps", toJson (sortedDeps.map (fun (d, h) => mkObj [("depKey", toJson d), ("depHash", toJson h)])))
+          ]
     )
   mkObj [ ("vt", toJson entries) ]
 
