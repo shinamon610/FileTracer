@@ -84,7 +84,7 @@ def IO.sequence {α : Type} : List (IO α) → IO (List α)
 
 def saveSVT (path : String) (vt : SVT) : IO Unit := do
   let json := svtToJson vt
-  IO.FS.writeFile path json.compress
+  IO.FS.writeFile path json.pretty
 
 unsafe def main_process (tasks:Tasks Applicative String (IO ByteArray)) (readBinIO:String ->IO ByteArray) (target: String) : IO Unit := do
   let svt_json:="ninja.json"
