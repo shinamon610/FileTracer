@@ -25,7 +25,7 @@ def svtFromJson (json : Json) : Except String SVT := do
   let vtJson ← json.getObjVal? "vt"
   let entriesJson ← vtJson.getArr?
 
-  let mut svt : SVT := Std.HashMap.empty
+  let mut svt : SVT := Std.HashMap.emptyWithCapacity
 
   for entryJson in entriesJson do
     let keyJson ← entryJson.getObjVal? "key"
@@ -55,10 +55,10 @@ def svtFromJson (json : Json) : Except String SVT := do
 def loadSVT (path : String) : IO SVT := do
   let content <- IO.FS.readFile path
   match parse content with
-  | .error _ => return Std.HashMap.empty
+  | .error _ => return Std.HashMap.emptyWithCapacity
   | .ok json =>  match (svtFromJson json) with
     | .ok val => return val
-    | .error _ => return Std.HashMap.empty
+    | .error _ => return Std.HashMap.emptyWithCapacity
 
 def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String) (comment:String) (readBinIO:String ->IO ByteArray) (fetched: IO (List ByteArray))  :IO ByteArray := do
   let _ <- fetched

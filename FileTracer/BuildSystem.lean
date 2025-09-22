@@ -74,7 +74,7 @@ unsafe def reachableTree {A : Type} [BEq A] [Hashable A]
           ([], visited)
       (.Node key children, visited)
 
-  (build (HashSet.empty) target).fst
+  (build (HashSet.emptyWithCapacity) target).fst
 
 def liftStore [Monad M] (x:StateT i M a):StateT (Store M i k v) M a:=do
   let temp <- gets (fun s => x.run s.getInfo)
