@@ -66,9 +66,8 @@ def human (targetPath:String) (paths: List String) (dirty_keys: DirtyInfo String
   println! s!"paths: {String.intercalate ", " paths}"
   println! s!"dirty!: {dirty_keys}"
   println! s!"comment {comment}"
+  println! s!""
 
-  let stdin <- IO.getStdin
-  let _ <- stdin.getLine
   readBinIO targetPath
 
 def List.sequence {f : Type u → Type v} [Applicative f] {α : Type u} :
