@@ -1,9 +1,9 @@
-import Lean4MyLib.DAG
+import Lean4MyLib.Tree
 import Std
 import Lean4MyLib.MyState
 open MyState
-open DAG
 open Std
+open Tree
 
 namespace BuildSystem
 universe u v
@@ -57,17 +57,17 @@ instance [Append A] [EmptyCollection A]:Applicative (Const A) where
 
 -- 内部で使用しているbuild関数のterminationが示せないのでunsafe
 unsafe def reachableTree {A : Type} [BEq A] [Hashable A]
-  (deps : A → List A) (target : A) : DAG A :=
+  (deps : A → List A) (target : A) : Tree A :=
 
   -- 内部関数: visited により再訪問を避ける
-  let rec build (visited : HashSet A) (key : A) : (DAG A × HashSet A) :=
+  let rec build (visited : HashSet A) (key : A) : (Tree A × HashSet A) :=
     if visited.contains key then
       (.Node key [], visited) -- 再訪問防止：葉として扱う
     else
       let visited := visited.insert key
       let (children, visited) :=
         deps key |>.foldl
-          (fun (acc : List (DAG A) × HashSet A) depKey =>
+          (fun (acc : List (Tree A) × HashSet A) depKey =>
             let (trees, visited) := acc
             let (childTree, visited') := build visited depKey
             (trees ++ [childTree], visited'))
@@ -96,7 +96,7 @@ unsafe def topological [Monad M][BEq k] [Hashable k] [ToString k]  : Scheduler M
       | some task =>dependencies task
 
     -- ノードの実行順序を計算
-    let order : List k := DAG.toposort (reachableTree dep target)
+    let order : List k := Tree.toposort (reachableTree dep target)
 
     -- 単一のノードをビルド
     let build (key : k) : StateT (Store M i k v) M Unit := do
