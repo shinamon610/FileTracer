@@ -1,11 +1,11 @@
 import FileTracer.ninja
 import FileTracer.BuildSystem
-import Lean4MyLib.DAG
+import Lean4MyLib.Tree
 import FileTracer.Utils
 import Lean4MyLib.MyState
 
 open MyState
-open DAG
+open Tree
 open BuildSystem
 
 structure TestA where
@@ -17,7 +17,7 @@ instance :HasFilePathAndComment TestA where
   path a:=a.path
   comment a:=a.comment
 
-def dag :StateM (DAG TestA) Unit := do
+def dag :StateM (Tree TestA ) Unit := do
   add {path:="./Test/exe", comment:= ""} do
     add ⟨"./Test/output.o" , "hey" ⟩ do
       add ⟨ "./Test/input1.c", ""⟩  empty
