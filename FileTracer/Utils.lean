@@ -27,4 +27,4 @@ def dagToTasks [HasFilePathAndComment A] [Inhabited A] (sd:StateM (Tree A) Unit)
             (human key ks dirty_keys (HasFilePathAndComment.comment a) readBinIO) <$> fetched
 
 def toWinPath (path:System.FilePath):System.FilePath :=
-  "C:" ++ (System.FilePath.normalize (path.toString.drop 2)).toString
+  "C:" ++ (System.FilePath.normalize ((path.toString.drop 2).copy)).toString
